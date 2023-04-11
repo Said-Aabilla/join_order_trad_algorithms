@@ -47,8 +47,9 @@ def stopDataRecording(power_sensor):
 
 
 def getAveragePower(psensor, startTime, endTime, plStartTime=-1, plEndTime=-1):
-    start_date_time = datetime.strptime(startTime, '%Y-%m-%d %H:%M:%S')
-    end_date_time = datetime.strptime(endTime, '%Y-%m-%d %H:%M:%S')
+
+    start_date_time = datetime.strptime(startTime, '%Y-%m-%d %H:%M:%S:%f')
+    end_date_time = datetime.strptime(endTime, '%Y-%m-%d %H:%M:%S:%f')
     if plStartTime == -1:
         start_timestamp = time.mktime(start_date_time.timetuple())
         end_timestamp = time.mktime(end_date_time.timetuple())
@@ -85,8 +86,8 @@ def getAveragePower(psensor, startTime, endTime, plStartTime=-1, plEndTime=-1):
     return (avg_power, exec_time_in_seconds, avg_energy)
 
 
-def get_query_energy(query, force_order):
-    conn, cursor = connect_bdd("ssb")
+def get_query_exec_energy(query, force_order):
+    conn, cursor = connect_bdd("imdbload")
 
     # Prepare query
     join_collapse_limit = "SET join_collapse_limit ="
@@ -106,11 +107,11 @@ def get_query_energy(query, force_order):
 
     # execute query
     cursor.callproc('getQueryExecutionInfo', (query,))
-    endExecTime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    endExecTime = datetime.now().strftime("%Y-%m-%d %H:%M:%S:%f")
 
     result = cursor.fetchone()
     result = result[0].split(";")
-    (startTime, executionPlan, endTime) = (result[0], result[1], endExecTime)
+    (startTime, executionPlan, endTime) = (result[0].replace(".", ":"), result[1], endExecTime)
 
     # print("4-4 - is recording: ", psensor.get_dataLogger().get_recording())
     print("startTime: ", startTime, " - endTime: ", endTime)
@@ -125,3 +126,64 @@ def get_query_energy(query, force_order):
 
     return (power, exec_time, energy)
 
+def get_query_plan_energy(query, force_order):
+    conn, cursor = connect_bdd("imdbload")
+
+    # Prepare query
+    join_collapse_limit = "SET join_collapse_limit ="
+    join_collapse_limit += "1" if force_order else "8"
+    query = join_collapse_limit + "; EXPLAIN " + query + ";"
+
+    # Prepare sensor
+    psensor = findPowerSensor("YWATTMK1-1F6860.power")
+    stopDataRecording(psensor)
+    clearPowerMeterCache(psensor)
+    tm = time.time()
+    datalog = psensor.get_dataLogger()
+    datalog.set_timeUTC(time.time())
+    startDataRecording(psensor)  # Power Meter starts recording power per second
+    time.sleep(2.0)
+    print("4 - is recording: ", psensor.get_dataLogger().get_recording())
+
+    # execute query
+    cursor.callproc('getQueryExecutionInfo', (query,))
+    endExecTime = datetime.now().strftime("%Y-%m-%d %H:%M:%S:%f")
+
+    result = cursor.fetchone()
+    result = result[0].split(";")
+    (startTime, executionPlan, endTime) = (result[0].replace(".", ":"), result[1], endExecTime)
+
+    # print("4-4 - is recording: ", psensor.get_dataLogger().get_recording())
+    print("startTime: ", startTime, " - endTime: ", endTime)
+    # YAPI.Sleep(2000)
+    time.sleep(2.0)
+    print("stop recording : ", datetime.now())
+    stopDataRecording(psensor)
+    print("7 - is recording: ", psensor.get_dataLogger().get_recording())
+
+    (power, exec_time, energy) = getAveragePower(psensor, startTime, endTime)
+
+
+    return (power, exec_time, energy)
+
+
+
+
+
+
+
+"""
+CREATE OR REPLACE FUNCTION getQueryExecutionInfo(text) RETURNS text AS $$
+DECLARE
+startTime text;
+endTime text;
+executionPlan text;
+insertedId int;
+BEGIN
+SELECT to_char(now(), 'YYYY-MM-DD HH24:MI:SS.MS') INTO startTime;
+EXECUTE  $1 INTO executionPlan;
+SELECT to_char(now(), 'YYYY-MM-DD HH24:MI:SS.MS') INTO endTime;
+RETURN startTime || ';' || executionPlan || ';' || endTime;
+END;
+$$ LANGUAGE plpgsql;
+"""

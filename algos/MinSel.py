@@ -1,45 +1,18 @@
 import moz_sql_parser
 from algos.helper_functions import *
 
-my_tables = {"aka_name": 0,
-             "aka_title": 0,
-             "cast_info": 0,
-             "char_name": 0,
-             "comp_cast_type": 0,
-             "company_name": 0,
-             "company_type": 0,
-             "complete_cast": 0,
-             "info_type": 0,
-             "keyword": 0,
-             "kind_type": 0,
-             "link_type": 0,
-             "movie_companies": 0,
-             "movie_info_idx": 0,
-             "movie_keyword": 0,
-             "movie_link": 0,
-             "name": 0,
-             "role_type": 0,
-             "title": 0,
-             "movie_info": 0,
-             "person_info": 0, }
+
 
 tablesWithSel = {}
 sortedTables = []
 
 
-def min_selectivity(input):
+def min_selectivity(input, cursor, my_tables):
     state = []
     solution = {}
     joinedTables, parsed_query, alias = queryParser(input)
 
     tables = get_tableWithSelectivity(parsed_query)
-    conn, cursor = connect_bdd("imdbload")
-
-    # calculate cardinality
-    for t in my_tables:
-        query = "select count(*) from " + t
-        cursor.execute(query)
-        my_tables[t] = cursor.fetchall()[0][0]
 
     # calculate selectivity
     for key in tables.keys():
@@ -48,7 +21,7 @@ def min_selectivity(input):
             json['where'] = tables[key][0]
         else:
             json['where'] = {'and': tables[key]}
-        query = format(json)
+        query = moz_sql_parser.format(json)
 
         print("query: ", query)
         cursor.execute(query)
