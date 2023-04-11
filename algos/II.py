@@ -1,4 +1,4 @@
-from algos.helper_functions import connect_bdd
+from algos.helper_functions import connect_bdd, get_join_order_cost
 import moz_sql_parser
 import itertools
 
@@ -66,29 +66,3 @@ def neighborhood(join_order):
                 neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
                 neighbors.append(neighbor)
         return neighbors
-
-
-def get_modified_query(parsed_query, join_order):
-
-    # Replace the 'FROM' clause with the specified join order
-    parsed_query['from'] = join_order
-
-    # Generate the modified SQL query from the AST
-    modified_query = moz_sql_parser.format(parsed_query)
-
-    return modified_query
-
-
-def get_join_order_cost(parsed_query, join_order):
-
-    modified_query = get_modified_query(parsed_query, join_order)
-
-    conn, cursor = connect_bdd("imdbload")
-
-    cursor.execute("SET join_collapse_limit = 1;")
-
-    cursor.execute("explain (format json) "+modified_query)
-    file=cursor.fetchone()[0][0]
-    result=file['Plan']["Total Cost"]
-
-    return result

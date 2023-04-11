@@ -1,21 +1,12 @@
-#!/usr/bin/env python
-# coding: utf-8
-import os
-# In[3]:
 
 import random
+
+import moz_sql_parser
 import numpy as np
 import psycopg2
-import json
 from moz_sql_parser import parse
-from moz_sql_parser import format
 
-#SELECT * FROM songplays,songs,times where  songplays.song_id = songs.song_id and times.start_time=songplays.start_time   
-#SELECT * FROM songplays as sp,songs as s,times as t where  sp.song_id = s.song_id and t.start_time=sp.start_time
-#SELECT * FROM songplays join songs on songplays.song_id = songs.song_id join times on times.start_time=songplays.start_time
-#SELECT * FROM songplays as sp  join songs as s on s.song_id = sp.song_id JOIN  times as t ON t.start_time = sp.start_time
 
-FACT="lineorder"
 
 joinedTables=[]
 joinedClauses=[]
@@ -28,26 +19,8 @@ def init():
     joinedClauses=[]
     global alias
     alias={}
-    
-def get_alias():
-    global alias
-    return alias
-def get_joinedClause(t):
-    global joinedClauses
-    global alias
-    i=0
-    t1=get_key(t,alias)
-    t2=get_key(FACT,alias)
 
-    while i<len(joinedClauses):
-        c=joinedClauses[i]
-        r1=c[0].rpartition('.')[0]
-        r2=c[1].rpartition('.')[0]
 
-        if((t1==r1)and(t2==r2))or((t1==r2)and(t2==r1)):
-            return c
-        else:
-            i+=1  
         
 def queryParser(input):
     init()
@@ -75,64 +48,10 @@ def queryParser(input):
            
     return joinedTables ,parsed_query,alias
 
-            
-def listToQuery(state,indice,parsed_query):
-    new_from=[{"value":state[0],"name":get_key(state[0],alias) }]
-    new_json=parsed_query
-                
-    for i in range (1,len(state)):
-        new_from.append({'join':{'name':get_key(state[i],alias),'value':state[i]}})
-        if(i==indice):
-            new_from[i]["on"]={"eq": get_joinedClause(state[i-1])}
-            
-        else:
-            new_from[i]["on"]={"eq":get_joinedClause(state[i])}
 
-    new_json["from"]=new_from
-
-    new_query=format(new_json)
-    return new_query
-
-
-def job_listToQuery(state, indice, parsed_query):
-    new_from = [{"value": state[0], "name": get_key(state[0], alias)}]
-    new_json = parsed_query
-
-    for i in range(1, len(state)):
-        new_from.append({'join': {'name': get_key(state[i], alias), 'value': state[i]}})
-        if (i == indice):
-            new_from[i]["on"] = {"eq": get_joinedClause(state[i - 1])}
-
-        else:
-            new_from[i]["on"] = {"eq": get_joinedClause(state[i])}
-
-    new_json["from"] = new_from
-
-    new_query = format(new_json)
-    return new_query
-
-
-def get_indice(state):
-    k=0
-    while k<len(state):
-        if(state[k]==FACT):
-            return k   
-        else:
-            k+=1
-
-            
-def get_runTime(query,cursor):
-    cursor.execute("explain analyse "+ query)
-    t=cursor.fetchall()
-    text=t[len(t)-1][0]
-    start = text.index(':')
-    end = text.index('m',start+1)
-    substring = text[start+1:end]
-    runTime=float(substring)
-    return runTime/1000
 
 def get_cost(query):
-    conn, cursor = connect_bdd("ssb")
+    conn, cursor = connect_bdd("imdbload")
 
     cursor.execute("explain (format json) "+query)
     file=cursor.fetchone()[0][0]
@@ -140,12 +59,7 @@ def get_cost(query):
     return result
 
 def get_query_latency(query, force_order):
-    conn, cursor = connect_bdd("ssb")
-
-    cursor.execute("set max_parallel_workers=1;")
-    cursor.execute("set max_parallel_workers_per_gather = 1;")
-    cursor.execute("set geqo_threshold = 20;")
-
+    conn, cursor = connect_bdd("imdbload")
     # Prepare query
     join_collapse_limit = "SET join_collapse_limit ="
     join_collapse_limit += "1" if force_order else "8"
@@ -202,66 +116,24 @@ def get_tableWithSelectivity(parsed_query):
 
     return result
 
-def get_key(val,dict):
-    for key, value in dict.items():
-         if val == value:
-            return key
 
-def get_sqlFiles():
-    
-    directory = 'C:/Users/zeblahm/Desktop/SSB/MinMax/queries'
-    files=[]  
-    for filename in os.listdir(directory): 
-        f = os.path.join(directory, filename) 
-        files.append(f)
-    return files
+def get_modified_query(parsed_query, join_order):
+    # Replace the 'FROM' clause with the specified join order
+    parsed_query['from'] = join_order
 
-def number_neighbors(state):
-    result=1
-    n=len(state)-1
-    for i in range(1, n):
-        result+=n-i
+    # Generate the modified SQL query from the AST
+    modified_query = moz_sql_parser.format(parsed_query)
+
+    return modified_query
+
+
+def get_join_order_cost(parsed_query, join_order):
+    modified_query = get_modified_query(parsed_query, join_order)
+
+    conn, cursor = connect_bdd("imdbload")
+    cursor.execute("SET join_collapse_limit = 1;")
+    cursor.execute("explain (format json) "+modified_query)
+    file=cursor.fetchone()[0][0]
+    result=file['Plan']["Total Cost"]
+
     return result
-
-
-def get_neighbors(state):
-    neighbors=set()
-    while(len(neighbors)<number_neighbors(state)):
-        neighbor=move(state)
-        #print(voisin)
-        neighbors.add(tuple(neighbor))
-    return neighbors
-def get_starting_points(number,R):
-    starting_points=[]
-    for i in range(0,number):
-        starting_points.append(get_random_state(R))
-    return starting_points
-def get_random_state(Relations):
-    #Create a new random individual
-    point=random.sample(Relations, len(Relations))
-    p=np.random.randint(2)
-    point.insert(p,FACT)
-    return point
-def move(state):
-    # get a new state after a move
-    result=[]
-    result.extend(state)
-    p1=np.random.randint(len(state))
-    p2=np.random.randint(len(state))
-    while (not ((state[p1]==FACT and p2<2) or (state[p2]==FACT and p1<2) or (state[p1]!=FACT and state[p2]!=FACT))) or (p1==p2) :
-        p1=np.random.randint(len(state))
-        p2=np.random.randint(len(state))
-       
-    
-    m=result[p1]
-    result[p1]=result[p2]
-    result[p2]=m
-    return result
-def get_indice(state):
-    k=0
-    while k<len(state):
-        if(state[k]==FACT):
-            return k   
-        else:
-            k+=1
-            
