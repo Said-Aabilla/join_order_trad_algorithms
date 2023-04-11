@@ -1,16 +1,5 @@
-import time
-
-import psycopg2
-
 from energy_functions import *
 
-
-def connect_bdd(name):
-    conn = psycopg2.connect(host="localhost",
-                            user="postgres", password="postgres",
-                            database=name)
-    cursor = conn.cursor()
-    return [conn, cursor]
 
 
 
@@ -32,12 +21,6 @@ $$ LANGUAGE plpgsql;
 
 
 def get_query_energy(query, cursor, force_order):
-
-    actualQueryTime = get_query_latency(query, cursor, False)
-
-    cursor.execute("set max_parallel_workers=1;")
-    cursor.execute("set max_parallel_workers_per_gather = 1;")
-    cursor.execute("set geqo_threshold = 20;")
 
     # Prepare query
     join_collapse_limit = "SET join_collapse_limit ="
@@ -64,16 +47,10 @@ def get_query_energy(query, cursor, force_order):
     result = result[0].split(";")
 
 
-
-    actualExecStartTime = endExecTimeStr - timedelta(milliseconds=actualQueryTime)
-
-
-    print (actualExecStartTime)
-    print("actualQueryTime",actualQueryTime)
     print("prc begin ",result[0])
     print("prc end ",endExecTime)
-    print("actualExecStartTime ",actualExecStartTime)
-    (startTime, executionPlan, endTime) = (actualExecStartTime, result[1], endExecTime)
+
+    (startTime, executionPlan, endTime) = (result[0], result[1], endExecTime)
 
     # print("4-4 - is recording: ", psensor.get_dataLogger().get_recording())
     print("startTime: ", startTime, " - endTime: ", endTime)
@@ -90,9 +67,8 @@ def get_query_energy(query, cursor, force_order):
 
 
 def get_query_latency(query, cursor, force_order):
-    cursor.execute("set max_parallel_workers=1;")
-    cursor.execute("set max_parallel_workers_per_gather = 1;")
-    cursor.execute("set geqo_threshold = 20;")
+
+
     join_collapse_limit = "SET join_collapse_limit ="
     join_collapse_limit += "1;" if force_order else "8;"
     cursor.execute(join_collapse_limit)
@@ -111,28 +87,24 @@ def get_query_latency(query, cursor, force_order):
 
 if __name__ == "__main__":
 
-    # elements = ['3b','1a','32a','8a','7a','25a','19a','22a','24a','28a','29b']
-    elements = ['1','2','3','4']
+    elements = ['3b','1a','32a','8a','7a','25a','19a','22a','24a','28a','29b']
     energy_tot = []
     latency_tot = []
     for element in elements:
         print("----------------------------------------------------------")
         print(element)
-        # with open('/home/said/Desktop/projects/jos_learned_rtos/JOB-queries/'+ str(element) + '.sql', 'r') as file:
-        with open('/home/said/Desktop/projects/ssb-queries/'+ str(element) + '.sql', 'r') as file:
-        # with open('./energy/output.txt', 'r') as file:
-            # Read the contents of the file into a string variable
+        with open('/home/said/Desktop/projects/jos_learned_rtos/JOB-queries/'+ str(element) + '.sql', 'r') as file:
             query = file.read()
-        conn, cursor = connect_bdd("ssb")
+        conn, cursor = connect_bdd("imdbload")
 
-        power, exec_time, energy = get_query_energy(query, cursor, False)
+        # power, exec_time, energy = get_query_energy(query, cursor, False)
 
         latency =  get_query_latency(query, cursor, False)
 
-        energy_tot.append(energy)
+        # energy_tot.append(energy)
         latency_tot.append(latency)
 
         print("latency : ",latency_tot)
-        print("energy : ",energy_tot)
+        # print("energy : ",energy_tot)
         print("----------------------------------------------------------")
 
