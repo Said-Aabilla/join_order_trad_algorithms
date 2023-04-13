@@ -1,4 +1,4 @@
-from algos.helper_functions import connect_bdd, get_join_order_cost
+from algos.helper_functions import get_join_order_cost, neighborhood
 import moz_sql_parser
 import itertools
 
@@ -57,12 +57,3 @@ def iterative_improvement(query, num_permutations ):
     return optimal_query , best_cost
 
 
-# Define the neighborhood function that generates adjacent join orders
-def neighborhood(join_order):
-        neighbors = []
-        for i in range(len(join_order) - 1):
-            for j in range(i + 1, len(join_order)):
-                neighbor = join_order.copy()
-                neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
-                neighbors.append(neighbor)
-        return neighbors

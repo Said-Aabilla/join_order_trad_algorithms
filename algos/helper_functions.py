@@ -80,6 +80,14 @@ def get_solution_cost(query):
     return result
 
 
+def get_pg_cost(query):
+    conn, cursor = connect_bdd("imdbload")
+
+    cursor.execute("explain (format json) " + query)
+    file = cursor.fetchone()[0][0]
+    result = file['Plan']["Total Cost"]
+    return result
+
 def connect_bdd(name):
     conn = psycopg2.connect(host="localhost",
                             user="postgres", password="postgres",
@@ -149,3 +157,15 @@ def create_file(directory, filename, content):
         f.write(content)
 
     print(f"File {filename} created in directory {directory}")
+
+
+
+# Define the neighborhood function that generates adjacent join orders
+def neighborhood(join_order):
+        neighbors = []
+        for i in range(len(join_order) - 1):
+            for j in range(i + 1, len(join_order)):
+                neighbor = join_order.copy()
+                neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+                neighbors.append(neighbor)
+        return neighbors
