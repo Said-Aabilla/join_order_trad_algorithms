@@ -2,7 +2,7 @@ from yoctopuce.yocto_power import *
 from datetime import datetime, timedelta
 import time
 
-from algos.helper_functions import connect_bdd
+from algos.helper_functions import connect_bdd, disconnect_bdd
 
 
 def findPowerSensor(power_sensor_identifier):
@@ -87,7 +87,7 @@ def getAveragePower(psensor, startTime, endTime, plStartTime=-1, plEndTime=-1):
 
 
 def get_query_exec_energy(query, force_order):
-    conn, cursor = connect_bdd("imdbload")
+    conn, cursor = connect_bdd("stack")
 
     # Prepare query
     join_collapse_limit = "SET join_collapse_limit ="
@@ -123,11 +123,13 @@ def get_query_exec_energy(query, force_order):
 
     (power, exec_time, energy) = getAveragePower(psensor, startTime, endTime)
 
+    disconnect_bdd(conn)
+
 
     return (power, exec_time, energy)
 
 def get_query_plan_energy(query, force_order):
-    conn, cursor = connect_bdd("imdbload")
+    conn, cursor = connect_bdd("stack")
 
     # Prepare query
     join_collapse_limit = "SET join_collapse_limit ="
@@ -163,6 +165,7 @@ def get_query_plan_energy(query, force_order):
 
     (power, exec_time, energy) = getAveragePower(psensor, startTime, endTime)
 
+    disconnect_bdd(conn)
 
     return (power, exec_time, energy)
 

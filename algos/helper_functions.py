@@ -46,16 +46,18 @@ def queryParser(input):
 
 
 def get_cost(query):
-    conn, cursor = connect_bdd("imdbload")
+    conn, cursor = connect_bdd("stack")
 
     cursor.execute("explain (format json) " + query)
     file = cursor.fetchone()[0][0]
     result = file['Plan']["Total Cost"]
+
+    disconnect_bdd(conn)
     return result
 
 
 def get_query_latency(query, force_order):
-    conn, cursor = connect_bdd("imdbload")
+    conn, cursor = connect_bdd("stack")
     # Prepare query
     join_collapse_limit = "SET join_collapse_limit ="
     join_collapse_limit += "1" if force_order else "8"
@@ -67,30 +69,35 @@ def get_query_latency(query, force_order):
     row = rows[0][0]
     latency = float(rows[0][0].split("actual time=")[1].split("..")[1].split(" ")[0])
 
+    disconnect_bdd(conn)
     return latency
 
 
 def get_solution_cost(query):
-    conn, cursor = connect_bdd("imdbload")
+    conn, cursor = connect_bdd("stack")
     cursor.execute("SET join_collapse_limit =1;")
 
     cursor.execute("explain (format json) " + query)
     file = cursor.fetchone()[0][0]
     result = file['Plan']["Total Cost"]
+    disconnect_bdd(conn)
+
     return result
 
 
 def get_pg_cost(query):
-    conn, cursor = connect_bdd("imdbload")
+    conn, cursor = connect_bdd("stack")
 
     cursor.execute("explain (format json) " + query)
     file = cursor.fetchone()[0][0]
     result = file['Plan']["Total Cost"]
+    disconnect_bdd(conn)
+
     return result
 
 def connect_bdd(name):
     conn = psycopg2.connect(host="localhost",
-                            user="postgres", password="postgres",
+                            user="postgres", password="admin",
                             database=name)
     cursor = conn.cursor()
     return [conn, cursor]
@@ -135,12 +142,13 @@ def get_modified_query(parsed_query, join_order):
 def get_join_order_cost(parsed_query, join_order):
     modified_query = get_modified_query(parsed_query, join_order)
 
-    conn, cursor = connect_bdd("imdbload")
+    conn, cursor = connect_bdd("stack")
     cursor.execute("SET join_collapse_limit = 1;")
     cursor.execute("explain (format json) " + modified_query)
     file = cursor.fetchone()[0][0]
     result = file['Plan']["Total Cost"]
 
+    disconnect_bdd(conn)
     return result
 
 

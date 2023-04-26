@@ -17,7 +17,7 @@ if __name__ == "__main__":
         # with open('/home/said/Desktop/projects/RTOS (copy)/new-solutions/'+ str(element) + '.sql', 'r') as file:
         with open('/home/said/Desktop/projects/RTOS (copy)/JOB-queries/'+ str(element) + '.sql', 'r') as file:
             query = file.read()
-        conn, cursor = connect_bdd("imdbload")
+        conn, cursor = connect_bdd("stack")
 
         start = time.time()
         latency =  get_query_latency(query, False)
@@ -37,3 +37,4 @@ if __name__ == "__main__":
         print("----------------------------------------------------------")
 #         latency :  [243.182, 153.767, 23.545, 299.651, 7.969, 824.902, 457.402, 559.342, 450.075, 627.022, 101.275]
 
+    disconnect_bdd(conn)

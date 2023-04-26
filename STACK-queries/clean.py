@@ -102,6 +102,8 @@ def replace_table_names_with_aliases_in_where_clause(where_clause, table_aliases
                         left_new_value = f"{table_aliases[left_table_name]}.{value[0].split('.')[1]}"
                         new_clause[key] = [left_new_value, right_new_value]
                         # print("clause after 00", new_clause[key])
+                    else:
+                        new_clause[key] = [left_new_value, right_new_value]
 
                     right_table_name = value[1].split('.')[0]
                     if right_table_name in tables_with_no_aliases:
@@ -109,6 +111,8 @@ def replace_table_names_with_aliases_in_where_clause(where_clause, table_aliases
                         right_new_value = f"{table_aliases[right_table_name]}.{value[1].split('.')[1]}"
                         new_clause[key] = [left_new_value, right_new_value]
                         # print("clause after 01", new_clause[key])
+                    else:
+                        new_clause[key] = [left_new_value, right_new_value]
 
                 elif isinstance(value[0], str) and '.' in value[0]:
                     table_name = value[0].split('.')[0]
@@ -142,7 +146,7 @@ def replace_table_names_with_aliases_in_where_clause(where_clause, table_aliases
 
 def replace_table_names_with_aliases_in_select_clause(select_clause, aliases, tables_with_no_aliases):
     def replace_value_with_alias(value):
-        if isinstance(value, str):
+        if isinstance(value, str) and '.' in value:
             left = value.split('.')[0]
             right = value.split('.')[1]
             print(left, right)
@@ -192,27 +196,35 @@ if __name__ == '__main__':
     table_aliases = {'account': 'acc', 'so_user': 'u', 'tag': 't', 'comment': 'c', 'site': 's', 'tag_question': 'tq',
                      'answer': 'a', 'question': 'q', 'post_link': 'pl', 'badge': 'b'}
 
-    # Read the query file
-    with open("queries_with_4_joined_tables/q7-100.sql", "r") as f:
-        query = f.read()
-        print("query read")
-        parsed_query = moz_sql_parser.parse(query)
+    # Set the path to the directory containing the files
+    directory_path = "queries_with_6_joined_tables"
 
-        select_clause = parsed_query['select']
-        from_clause = parsed_query['from']
-        where_clause = parsed_query['where']
-        print(select_clause)
+    # Loop over all the files in the directory
+    for filename in os.listdir(directory_path):
+        # Check if the file is a file and not a directory
+        if os.path.isfile(os.path.join(directory_path, filename)) :
+            # Open the file for reading
+            with open(os.path.join(directory_path, filename), 'r', encoding="utf8") as file:
+                # Read the contents of the file
+                query = file.read()
+                print("query read: " , filename)
+                parsed_query = moz_sql_parser.parse(query)
 
-        new_from_clause, tables_with_no_aliases = assign_table_aliases(from_clause, table_aliases)
-        new_where_clause = replace_table_names_with_aliases_in_where_clause(where_clause, table_aliases,
-                                                                            tables_with_no_aliases)
-        new_select_clause = replace_table_names_with_aliases_in_select_clause(select_clause, table_aliases,
-                                                                              tables_with_no_aliases)
+                select_clause = parsed_query['select']
+                from_clause = parsed_query['from']
+                where_clause = parsed_query['where']
+                # print(select_clause)
 
-        parsed_query['select'] = new_select_clause
-        parsed_query['from'] = new_from_clause
-        parsed_query['where'] = new_where_clause
+                new_from_clause, tables_with_no_aliases = assign_table_aliases(from_clause, table_aliases)
+                new_where_clause = replace_table_names_with_aliases_in_where_clause(where_clause, table_aliases,
+                                                                                    tables_with_no_aliases)
+                new_select_clause = replace_table_names_with_aliases_in_select_clause(select_clause, table_aliases,
+                                                                                      tables_with_no_aliases)
 
-        rewritten_query = moz_sql_parser.format(parsed_query)
+                parsed_query['select'] = new_select_clause
+                parsed_query['from'] = new_from_clause
+                parsed_query['where'] = new_where_clause
 
-        create_file('plus', 'ffff.sql', rewritten_query)
+                rewritten_query = moz_sql_parser.format(parsed_query)
+
+                create_file('cleaned_with_aliases_6_joined', filename, rewritten_query)
