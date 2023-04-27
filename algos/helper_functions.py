@@ -129,20 +129,87 @@ def get_tableWithSelectivity(parsed_query):
     return result
 
 
-def get_modified_query(parsed_query, join_order):
-    # Replace the 'FROM' clause with the specified join order
-    parsed_query['from'] = join_order
-
-    # Generate the modified SQL query from the AST
-    modified_query = moz_sql_parser.format(parsed_query)
-
-    return modified_query
+def get_modified_query(query, join_conditions, join_aliases):
+    from moz_sql_parser import parse, format
 
 
-def get_join_order_cost(parsed_query, join_order):
-    modified_query = get_modified_query(parsed_query, join_order)
+    parsed_query = parse(query)
+    new_from = ''
 
-    conn, cursor = connect_bdd("stack")
+    aliases_map = {}
+    table_names = [table['value'] for table in parsed_query['from']]
+    table_aliases = [table['name'] for table in parsed_query['from']]
+    for index, alias in enumerate(table_aliases):
+        table = table_names[index]
+        aliases_map[alias] = table
+
+    join_order = []
+    helper_to_alter_where = []
+    # create explicit join conditions
+    i = 0
+    for condition in join_conditions:
+        # print(i)
+        if 'eq' in condition and '.' in condition['eq'][0] and '.' in condition['eq'][1]:
+            i = i + 1
+            print(condition)
+
+            left = condition['eq'][0].split('.')[0]
+            right = condition['eq'][1].split('.')[0]
+            if left in table_aliases and right in table_aliases and i == 1:
+
+                new_from += f" FROM {aliases_map[left]} AS {left} JOIN {aliases_map[right]} AS {right} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                join_order.append(aliases_map[left])
+                join_order.append(aliases_map[right])
+
+            elif left in table_aliases and right in table_aliases and (i != 1):
+                if aliases_map[right] in join_order and aliases_map[left] in join_order:
+                    last_joined = join_order[-1]
+                    print("last_joined : ", last_joined)
+                    if last_joined == aliases_map[right]:
+                        new_from += f" And  {condition['eq'][0]} = {condition['eq'][1]}"
+                    elif last_joined == aliases_map[left]:
+                        new_from += f" And  {condition['eq'][0]} = {condition['eq'][1]}"
+
+                elif aliases_map[right] in join_order:
+                    new_from += f" JOIN {aliases_map[left]} AS {left} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                    join_order.append(aliases_map[left])
+
+                elif aliases_map[left] in join_order:
+                    new_from += f" JOIN {aliases_map[right]} AS {right} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                    join_order.append(aliases_map[right])
+                elif aliases_map[left] not in join_order and aliases_map[right] not in join_order:
+                    if join_aliases.count(left) < 2:
+                        new_from += f" JOIN {aliases_map[left]} AS {left} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                        join_order.append(aliases_map[left])
+                    else:
+                        new_from += f" JOIN {aliases_map[right]} AS {right} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                        join_order.append(aliases_map[right])
+
+    for condition in parsed_query["where"]["and"]:
+        if 'eq' in condition and '.' in condition['eq'][0] and '.' in condition['eq'][1]:
+          continue
+        else:
+            helper_to_alter_where.append(condition)
+    # get only SELECT statement
+    idx = query.index("FROM")
+    select_stmt = query[:idx]
+    print("new selecet:", select_stmt)
+    print("new from:", new_from)
+
+    # new_where
+    parsed_query['where']['and'] = helper_to_alter_where
+    new_query_with_updated_where = format(parsed_query)
+    idx = new_query_with_updated_where.index("WHERE")
+    where_stmt = new_query_with_updated_where[idx:]
+    print("new where_stmt:", where_stmt)
+
+    return f'{select_stmt} {new_from} {where_stmt}'
+
+
+def get_join_order_cost(query, join_order, join_aliases):
+    modified_query = get_modified_query(query, join_order, join_aliases)
+
+    conn, cursor = connect_bdd("imdbload")
     cursor.execute("SET join_collapse_limit = 1;")
     cursor.execute("explain (format json) " + modified_query)
     file = cursor.fetchone()[0][0]
