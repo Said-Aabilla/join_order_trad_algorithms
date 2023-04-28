@@ -86,7 +86,7 @@ def get_solution_cost(query):
 
 
 def get_pg_cost(query):
-    conn, cursor = connect_bdd("stack")
+    conn, cursor = connect_bdd("imdbload")
 
     cursor.execute("explain (format json) " + query)
     file = cursor.fetchone()[0][0]
@@ -94,6 +94,7 @@ def get_pg_cost(query):
     disconnect_bdd(conn)
 
     return result
+
 
 def connect_bdd(name):
     conn = psycopg2.connect(host="localhost",
@@ -129,19 +130,25 @@ def get_tableWithSelectivity(parsed_query):
     return result
 
 
-def get_modified_query(query, join_conditions, join_aliases):
+def get_modified_query(query, join_conditions):
     from moz_sql_parser import parse, format
 
-
-    parsed_query = parse(query)
     new_from = ''
 
+    parsed_query = parse(query)
+
     aliases_map = {}
+    duplicate_table_diffrent_alias = {}
     table_names = [table['value'] for table in parsed_query['from']]
     table_aliases = [table['name'] for table in parsed_query['from']]
     for index, alias in enumerate(table_aliases):
         table = table_names[index]
+        values_list = list(aliases_map.values())
+        if table in values_list:
+            duplicate_table_diffrent_alias[table] = alias
         aliases_map[alias] = table
+
+    # print(" found dupes: ", duplicate_table_diffrent_alias)
 
     join_order = []
     helper_to_alter_where = []
@@ -149,65 +156,80 @@ def get_modified_query(query, join_conditions, join_aliases):
     i = 0
     for condition in join_conditions:
         # print(i)
-        if 'eq' in condition and '.' in condition['eq'][0] and '.' in condition['eq'][1]:
+        if 'eq' in condition and isinstance(condition['eq'][0], str) and isinstance(condition['eq'][1], str) and '.' in \
+                condition['eq'][0] and '.' in condition['eq'][1]:
             i = i + 1
-            print(condition)
+            # print(condition)
 
             left = condition['eq'][0].split('.')[0]
             right = condition['eq'][1].split('.')[0]
             if left in table_aliases and right in table_aliases and i == 1:
 
                 new_from += f" FROM {aliases_map[left]} AS {left} JOIN {aliases_map[right]} AS {right} ON {condition['eq'][0]} = {condition['eq'][1]}"
-                join_order.append(aliases_map[left])
-                join_order.append(aliases_map[right])
+                join_order.append(left)
+                join_order.append(right)
 
             elif left in table_aliases and right in table_aliases and (i != 1):
-                if aliases_map[right] in join_order and aliases_map[left] in join_order:
+                if right in join_order and left in join_order:
                     last_joined = join_order[-1]
-                    print("last_joined : ", last_joined)
-                    if last_joined == aliases_map[right]:
-                        new_from += f" And  {condition['eq'][0]} = {condition['eq'][1]}"
-                    elif last_joined == aliases_map[left]:
-                        new_from += f" And  {condition['eq'][0]} = {condition['eq'][1]}"
+                    # print("last_joined : ", last_joined)
+                    if last_joined in duplicate_table_diffrent_alias.values():
 
-                elif aliases_map[right] in join_order:
-                    new_from += f" JOIN {aliases_map[left]} AS {left} ON {condition['eq'][0]} = {condition['eq'][1]}"
-                    join_order.append(aliases_map[left])
+                        if last_joined == right and right != duplicate_table_diffrent_alias[
+                            aliases_map[right]]:
+                            new_from += f" And  {condition['eq'][0]} = {condition['eq'][1]}"
+                        elif last_joined == left and left != duplicate_table_diffrent_alias[
+                            aliases_map[left]]:
+                            new_from += f" And  {condition['eq'][0]} = {condition['eq'][1]}"
 
-                elif aliases_map[left] in join_order:
-                    new_from += f" JOIN {aliases_map[right]} AS {right} ON {condition['eq'][0]} = {condition['eq'][1]}"
-                    join_order.append(aliases_map[right])
-                elif aliases_map[left] not in join_order and aliases_map[right] not in join_order:
-                    if join_aliases.count(left) < 2:
-                        new_from += f" JOIN {aliases_map[left]} AS {left} ON {condition['eq'][0]} = {condition['eq'][1]}"
-                        join_order.append(aliases_map[left])
+                        elif last_joined == right and right == duplicate_table_diffrent_alias[
+                            aliases_map[right]]:
+                            new_from += f" JOIN {aliases_map[right]} AS {right} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                            join_order.append(right)
+
+                        elif last_joined == left and left == duplicate_table_diffrent_alias[
+                            aliases_map[left]]:
+                            new_from += f" JOIN {aliases_map[left]} AS {left} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                            join_order.append(left)
+
                     else:
-                        new_from += f" JOIN {aliases_map[right]} AS {right} ON {condition['eq'][0]} = {condition['eq'][1]}"
-                        join_order.append(aliases_map[right])
+                        if last_joined == right:
+                            new_from += f" And  {condition['eq'][0]} = {condition['eq'][1]}"
+                        elif last_joined == left:
+                            new_from += f" And  {condition['eq'][0]} = {condition['eq'][1]}"
+
+
+                elif right in join_order:
+                    new_from += f" JOIN {aliases_map[left]} AS {left} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                    join_order.append(left)
+
+                elif left in join_order:
+                    new_from += f" JOIN {aliases_map[right]} AS {right} ON {condition['eq'][0]} = {condition['eq'][1]}"
+                    join_order.append(right)
 
     for condition in parsed_query["where"]["and"]:
-        if 'eq' in condition and '.' in condition['eq'][0] and '.' in condition['eq'][1]:
-          continue
+        if 'eq' in condition and isinstance(condition['eq'][0], str) and isinstance(condition['eq'][1], str)  and '.' in condition['eq'][0] and '.' in condition['eq'][1]:
+            continue
         else:
             helper_to_alter_where.append(condition)
     # get only SELECT statement
     idx = query.index("FROM")
     select_stmt = query[:idx]
-    print("new selecet:", select_stmt)
-    print("new from:", new_from)
+    # print("new selecet:", select_stmt)
+    # print("new from:", new_from)
 
     # new_where
     parsed_query['where']['and'] = helper_to_alter_where
     new_query_with_updated_where = format(parsed_query)
     idx = new_query_with_updated_where.index("WHERE")
     where_stmt = new_query_with_updated_where[idx:]
-    print("new where_stmt:", where_stmt)
+    # print("new where_stmt:", where_stmt)
 
     return f'{select_stmt} {new_from} {where_stmt}'
 
 
-def get_join_order_cost(query, join_order, join_aliases):
-    modified_query = get_modified_query(query, join_order, join_aliases)
+def get_join_order_cost(query, join_order):
+    modified_query = get_modified_query(query, join_order)
 
     conn, cursor = connect_bdd("imdbload")
     cursor.execute("SET join_collapse_limit = 1;")
@@ -234,13 +256,12 @@ def create_file(directory, filename, content):
     print(f"File {filename} created in directory {directory}")
 
 
-
 # Define the neighborhood function that generates adjacent join orders
 def neighborhood(join_order):
-        neighbors = []
-        for i in range(len(join_order) - 1):
-            for j in range(i + 1, len(join_order)):
-                neighbor = join_order.copy()
-                neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
-                neighbors.append(neighbor)
-        return neighbors
+    neighbors = []
+    for i in range(len(join_order) - 1):
+        for j in range(i + 1, len(join_order)):
+            neighbor = join_order.copy()
+            neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+            neighbors.append(neighbor)
+    return neighbors

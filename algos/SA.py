@@ -9,14 +9,17 @@ def simulated_annealing(query, num_iterations, initial_temperature, cooling_rate
     parsed_query = moz_sql_parser.parse(query)
     tables = parsed_query['from']
     # best_join_order = tables.copy()
-    best_join_order , join_aliases = get_join_conds(parsed_query)
-    best_cost = get_join_order_cost(query, best_join_order, join_aliases)
+    best_join_order  = get_join_conds(parsed_query)
+    try:
+       best_cost = get_join_order_cost(query, best_join_order)
+    except:
+        best_cost = float('inf')
 
     # Set the initial join order and its cost
     # current_join_order = tables.copy()
     current_join_order = best_join_order
     current_cost = best_cost
-    print("---------------------------", best_cost)
+    print("--------------init-------------", best_cost)
 
     # Set the temperature
     temperature = initial_temperature
@@ -25,14 +28,14 @@ def simulated_annealing(query, num_iterations, initial_temperature, cooling_rate
         # print("mother loop index", iteration)
         # Generate a random neighbor
         # neighbor = get_random_neighbor(current_join_order)
-        neighbor = shuffle_order(current_join_order)
+        neighbor = get_random_neighbor(current_join_order)
 
         # Calculate the cost of the neighbor
         try:
-            neighbor_cost = get_join_order_cost(query, neighbor, join_aliases)
+            neighbor_cost = get_join_order_cost(query, neighbor)
             print("best cost", neighbor_cost)
         except:
-           num_iterations = 1 +num_iterations
+           num_iterations = 1 + num_iterations
            continue
 
         # Calculate the acceptance probability
@@ -42,7 +45,6 @@ def simulated_annealing(query, num_iterations, initial_temperature, cooling_rate
         if acceptance_probability >= random.random():
             current_join_order = neighbor.copy()
             current_cost = neighbor_cost
-            print("best cost", current_cost)
 
             # If the new join order is better than the best seen so far, update it
             if current_cost < best_cost:
@@ -56,7 +58,7 @@ def simulated_annealing(query, num_iterations, initial_temperature, cooling_rate
     # Reconstruct the query with the best join order
     # parsed_query['from'] = best_join_order
     # optimal_query = moz_sql_parser.format(parsed_query)
-    optimal_query = get_modified_query(query, best_join_order,join_aliases)
+    optimal_query = get_modified_query(query, best_join_order)
 
     return optimal_query, best_cost
 
@@ -78,20 +80,16 @@ def get_acceptance_probability(current_cost, neighbor_cost, temperature):
 
 
 def get_join_conds(parsed_query):
-    aliases_map = {}
-    table_names = [table['value'] for table in parsed_query['from']]
+
     table_aliases = [table['name'] for table in parsed_query['from']]
-    for index, alias in enumerate(table_aliases):
-        table = table_names[index]
-        aliases_map[alias] = table
-    print(aliases_map)
+
     join_conditions = parsed_query['where']['and']
 
     joins = []
     join_aliases = []
     for condition in join_conditions:
 
-        if 'eq' in condition and '.' in condition['eq'][0] and '.' in condition['eq'][1]:
+        if 'eq' in condition and isinstance(condition['eq'][0], str) and isinstance(condition['eq'][1], str)  and '.' in condition['eq'][0] and '.' in condition['eq'][1]:
 
             left = condition['eq'][0].split('.')[0]
             right = condition['eq'][1].split('.')[0]
@@ -100,7 +98,7 @@ def get_join_conds(parsed_query):
                 join_aliases.append(left)
                 join_aliases.append(right)
 
-    return joins, join_aliases
+    return joins
 
 
 import random
