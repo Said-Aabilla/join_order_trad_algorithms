@@ -58,9 +58,9 @@ def simulated_annealing(query, num_iterations, initial_temperature, cooling_rate
     # Reconstruct the query with the best join order
     # parsed_query['from'] = best_join_order
     # optimal_query = moz_sql_parser.format(parsed_query)
-    optimal_query = get_modified_query(query, best_join_order)
+    optimal_query, join_order = get_modified_query(query, best_join_order)
 
-    return optimal_query, best_cost
+    return optimal_query, best_cost , join_order
 
 
 # Define the neighborhood function that generates random adjacent join orders

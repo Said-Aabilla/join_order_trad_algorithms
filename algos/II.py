@@ -1,5 +1,5 @@
 from algos.SA import get_join_conds
-from algos.helper_functions import get_join_order_cost, neighborhood
+from algos.helper_functions import get_join_order_cost, neighborhood, get_modified_query
 import moz_sql_parser
 import itertools
 
@@ -64,10 +64,10 @@ def iterative_improvement(query, num_permutations,filename ):
         #     break
 
     # Reconstruct the query with the best join order
-    parsed_query['from'] = best_join_order
-    print("best join order: ", best_join_order)
-    optimal_query = moz_sql_parser.format(parsed_query)
+    # parsed_query['from'] = best_join_order
+    # print("best join order: ", best_join_order)
+    optimal_query, join_order = get_modified_query(query, best_join_order)
 
-    return optimal_query , best_cost
+    return optimal_query, best_cost , join_order
 
 

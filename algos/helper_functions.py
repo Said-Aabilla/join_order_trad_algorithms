@@ -225,11 +225,12 @@ def get_modified_query(query, join_conditions):
     where_stmt = new_query_with_updated_where[idx:]
     # print("new where_stmt:", where_stmt)
 
-    return f'{select_stmt} {new_from} {where_stmt}'
+    return_query = f'{select_stmt} {new_from} {where_stmt}'
+    return return_query, join_order
 
 
 def get_join_order_cost(query, join_order):
-    modified_query = get_modified_query(query, join_order)
+    modified_query , join_order= get_modified_query(query, join_order)
 
     conn, cursor = connect_bdd("imdbload")
     cursor.execute("SET join_collapse_limit = 1;")
