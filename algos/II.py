@@ -17,7 +17,7 @@ def iterative_improvement(query, num_permutations ):
     index = 0
     for starting_join_order in itertools.islice(itertools.permutations(tables), num_permutations):
         index += 1
-        print("mother loop index", index)
+        # print("mother loop index", index)
         # Initialize the current join order and its cost
         current_join_order = list(starting_join_order)
         current_cost = get_join_order_cost(parsed_query, current_join_order)
@@ -36,14 +36,14 @@ def iterative_improvement(query, num_permutations ):
                 if neighbor_cost < current_cost:
                     current_join_order = neighbor.copy()
                     current_cost = neighbor_cost
-                    print("current neighbor_cost: ", neighbor_cost)
+                    # print("current neighbor_cost: ", neighbor_cost)
 
                     # If the new join order is better than the best seen so far, update it
                     if current_cost < best_cost:
                         improved = True
                         best_join_order = current_join_order.copy()
                         best_cost = current_cost
-                        print("current best_cost: ", best_cost)
+                        # print("current best_cost: ", best_cost)
                 if(improved):
                     break
         # if(improved):

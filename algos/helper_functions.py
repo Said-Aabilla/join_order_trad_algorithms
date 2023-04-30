@@ -97,7 +97,7 @@ def get_pg_cost(query):
 
 def connect_bdd(name):
     conn = psycopg2.connect(host="localhost",
-                            user="postgres", password="admin",
+                            user="postgres", password="postgres",
                             database=name)
     cursor = conn.cursor()
     return [conn, cursor]
@@ -140,9 +140,10 @@ def get_modified_query(parsed_query, join_order):
 
 
 def get_join_order_cost(parsed_query, join_order):
+
     modified_query = get_modified_query(parsed_query, join_order)
 
-    conn, cursor = connect_bdd("stack")
+    conn, cursor = connect_bdd("imdbload")
     cursor.execute("SET join_collapse_limit = 1;")
     cursor.execute("explain (format json) " + modified_query)
     file = cursor.fetchone()[0][0]

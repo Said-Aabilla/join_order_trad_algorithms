@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM question AS q, site AS s, tag_question AS tq, tag AS t WHERE t.site_id = s.site_id AND q.site_id = s.site_id AND tq.site_id = s.site_id AND tq.question_id = q.id AND tq.tag_id = t.id AND s.site_name IN ('tex') AND t.name IN ('fontspec', 'miktex', 'theorems') AND q.score >= 1 AND q.score <= 10;

@@ -20,12 +20,17 @@ def simulated_annealing(query, num_iterations, initial_temperature, cooling_rate
 
 
     for iteration in range(num_iterations):
-        print("mother loop index", iteration)
+        # print("mother loop index", iteration)
         # Generate a random neighbor
         neighbor = get_random_neighbor(current_join_order)
 
+        print("------------------------------------------------")
+        print("current join order: ",neighbor)
         # Calculate the cost of the neighbor
         neighbor_cost = get_join_order_cost(parsed_query, neighbor)
+        print("current join order cost: ",neighbor_cost)
+
+        print("------------------------------------------------")
 
         # Calculate the acceptance probability
         acceptance_probability = get_acceptance_probability(current_cost, neighbor_cost, temperature)
@@ -34,7 +39,7 @@ def simulated_annealing(query, num_iterations, initial_temperature, cooling_rate
         if acceptance_probability >= random.random():
             current_join_order = neighbor.copy()
             current_cost = neighbor_cost
-            print("best cost", current_cost)
+            # print("best cost", current_cost)
 
             # If the new join order is better than the best seen so far, update it
             if current_cost < best_cost:
