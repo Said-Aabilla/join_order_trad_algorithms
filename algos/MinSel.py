@@ -1,7 +1,15 @@
 import moz_sql_parser
+
+from algos.SA import get_join_conds
 from algos.helper_functions import *
 
-
+alias_map = {"char_name": ["chn"], "cast_info": ["ci"], "company_name": ["cn", "cn1", "cn2"], "company_type": ["ct"],
+             "movie_companies": ["mc", "mc1", "mc2"], "role_type": ["rt"], "title": ["t", "t1", "t2"], "keyword": ["k"],
+             "link_type": ["lt"], "movie_keyword": ["mk"], "movie_link": ["ml"], "movie_info": ["mi"],
+             "movie_info_idx": ["mi_idx", "mi_idx2", "mi_idx1", "miidx"], "kind_type": ["kt", "kt1", "kt2"],
+             "aka_title": ["at"], "aka_name": ["an", "an1"], "complete_cast": ["cc"],
+             "comp_cast_type": ["cct1", "cct2"], "info_type": ["it", "it1", "it2"], "person_info": ["pi"],
+             "name": ["n1", "n"]}
 
 tablesWithSel = {}
 sortedTables = []
@@ -38,29 +46,26 @@ def min_selectivity(input, cursor, my_tables):
 
     my_parsed_query = moz_sql_parser.parse(input)
 
-    new_from_clause = reorder_tables(my_parsed_query["from"], state)
-    my_parsed_query["from"] = new_from_clause
+    default_join_order = get_join_conds(my_parsed_query)
 
-    new_query = moz_sql_parser.format(my_parsed_query)
+    hint = reorder_join_conditions(state, default_join_order)
 
-    cost = get_solution_cost(new_query)
+    hint_str = f" /*+ Leading ({'  '.join(hint)}) */ "
+    input = f"{hint_str}  {input}"
 
-    return new_query, cost
+    return input
 
 
-def reorder_tables(table_list, order_list):
-    # Create a dictionary to map table names to their aliases
-    table_dict = {table['name']: table['value'] for table in table_list}
-
-    # Create a new list of tables in the desired order
-    new_table_list = []
-    for table_name in order_list:
-        if table_name in table_dict:
-            new_table_list.append({'value': table_dict[table_name], 'name': table_name})
-
-    # Append any remaining tables that are not in the order list
-    for table in table_list:
-        if table['name'] not in order_list:
-            new_table_list.append(table)
-
-    return new_table_list
+def reorder_join_conditions(state, default_join_order):
+    new_order = []
+    for table in state:
+        for condition in default_join_order:
+            left = condition['eq'][0].split('.')[0]
+            right = condition['eq'][1].split('.')[0]
+            if right in alias_map[table] and right not in new_order:
+                new_order.append(right)
+            elif left in alias_map[table] and left not in new_order:
+                new_order.append(left)
+            else:
+                continue
+    return new_order

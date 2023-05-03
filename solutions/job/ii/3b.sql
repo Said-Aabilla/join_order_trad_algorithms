@@ -1,0 +1,2 @@
+SELECT MIN(t.title) AS movie_title
+  FROM keyword AS k JOIN movie_keyword AS mk ON k.id = mk.keyword_id JOIN title AS t ON t.id = mk.movie_id JOIN movie_info AS mi ON mk.movie_id = mi.movie_id And  t.id = mi.movie_id WHERE k.keyword LIKE '%sequel%' AND mi.info IN ('Bulgaria') AND t.production_year > 2010;

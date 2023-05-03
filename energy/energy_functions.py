@@ -87,7 +87,7 @@ def getAveragePower(psensor, startTime, endTime, plStartTime=-1, plEndTime=-1):
 
 
 def get_query_exec_energy(query, force_order):
-    conn, cursor = connect_bdd("stack")
+    conn, cursor = connect_bdd("imdbload")
 
     # Prepare query
     join_collapse_limit = "SET join_collapse_limit ="
@@ -129,7 +129,7 @@ def get_query_exec_energy(query, force_order):
     return (power, exec_time, energy)
 
 def get_query_plan_energy(query, force_order):
-    conn, cursor = connect_bdd("stack")
+    conn, cursor = connect_bdd("imdbload")
 
     # Prepare query
     join_collapse_limit = "SET join_collapse_limit ="
